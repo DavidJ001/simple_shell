@@ -1,152 +1,144 @@
 #include "shell.h"
 
-int shellby_alias(char **args, char __attribute__((__unused__)) **front);
-void set_alias(char *var_name, char *value);
-void print_alias(alias_t *alias);
-
 /**
- * shellby_alias - Builtin command that either prints all aliases, specific
- * aliases, or sets an alias.
- * @args: An array of arguments.
- * @front: A double pointer to the beginning of args.
+ * strcat_cd - function that concatenates the message for cd error
  *
- * Return: If an error occurs - -1.
- *         Otherwise - 0.
+ * @datash: data relevant (directory)
+ * @msg: message to print
+ * @error: output message
+ * @ver_str: counter lines
+ * Return: error message
  */
-int shellby_alias(char **args, char __attribute__((__unused__)) **front)
+char *strcat_cd(data_shell *datash, char *msg, char *error, char *ver_str)
 {
-	alias_t *temp = aliases;
-	int i, ret = 0;
-	char *value;
+	char *illegal_flag;
 
-	if (!args[0])
+	_strcpy(error, datash->av[0]);
+	_strcat(error, ": ");
+	_strcat(error, ver_str);
+	_strcat(error, ": ");
+	_strcat(error, datash->args[0]);
+	_strcat(error, msg);
+	if (datash->args[1][0] == '-')
 	{
-		while (temp)
-		{
-			print_alias(temp);
-			temp = temp->next;
-		}
-		return (ret);
+		illegal_flag = malloc(3);
+		illegal_flag[0] = '-';
+		illegal_flag[1] = datash->args[1][1];
+		illegal_flag[2] = '\0';
+		_strcat(error, illegal_flag);
+		free(illegal_flag);
 	}
-	for (i = 0; args[i]; i++)
+	else
 	{
-		temp = aliases;
-		value = _strchr(args[i], '=');
-		if (!value)
-		{
-			while (temp)
-			{
-				if (_strcmp(args[i], temp->name) == 0)
-				{
-					print_alias(temp);
-					break;
-				}
-				temp = temp->next;
-			}
-			if (!temp)
-				ret = create_error(args + i, 1);
-		}
-		else
-			set_alias(args[i], value);
+		_strcat(error, datash->args[1]);
 	}
-	return (ret);
+
+	_strcat(error, "\n");
+	_strcat(error, "\0");
+	return (error);
 }
 
 /**
- * set_alias - Will either set an existing alias 'name' with a new value,
- * 'value' or creates a new alias with 'name' and 'value'.
- * @var_name: Name of the alias.
- * @value: Value of the alias. First character is a '='.
+ * error_get_cd - error message for cd command in get_cd
+ * @datash: data relevant (directory)
+ * Return: Error message
  */
-void set_alias(char *var_name, char *value)
+char *error_get_cd(data_shell *datash)
 {
-	alias_t *temp = aliases;
-	int len, j, k;
-	char *new_value;
+	int length, len_id;
+	char *error, *ver_str, *msg;
 
-	*value = '\0';
-	value++;
-	len = _strlen(value) - _strspn(value, "'\"");
-	new_value = malloc(sizeof(char) * (len + 1));
-	if (!new_value)
-		return;
-	for (j = 0, k = 0; value[j]; j++)
+	ver_str = aux_itoa(datash->counter);
+	if (datash->args[1][0] == '-')
 	{
-		if (value[j] != '\'' && value[j] != '"')
-			new_value[k++] = value[j];
+		msg = ": Illegal option ";
+		len_id = 2;
 	}
-	new_value[k] = '\0';
-	while (temp)
+	else
 	{
-		if (_strcmp(var_name, temp->name) == 0)
-		{
-			free(temp->value);
-			temp->value = new_value;
-			break;
-		}
-		temp = temp->next;
+		msg = ": can't cd to ";
+		len_id = _strlen(datash->args[1]);
 	}
-	if (!temp)
-		add_alias_end(&aliases, var_name, new_value);
+
+	length = _strlen(datash->av[0]) + _strlen(datash->args[0]);
+	length += _strlen(ver_str) + _strlen(msg) + len_id + 5;
+	error = malloc(sizeof(char) * (length + 1));
+
+	if (error == 0)
+	{
+		free(ver_str);
+		return (NULL);
+	}
+
+	error = strcat_cd(datash, msg, error, ver_str);
+
+	free(ver_str);
+
+	return (error);
 }
 
 /**
- * print_alias - Prints the alias in the format name='value'.
- * @alias: Pointer to an alias.
+ * error_not_found - generic error message for command not found
+ * @datash: data relevant (counter, arguments)
+ * Return: Error message
  */
-void print_alias(alias_t *alias)
+char *error_not_found(data_shell *datash)
 {
-	char *alias_string;
-	int len = _strlen(alias->name) + _strlen(alias->value) + 4;
+	int length;
+	char *error;
+	char *ver_str;
 
-	alias_string = malloc(sizeof(char) * (len + 1));
-	if (!alias_string)
-		return;
-	_strcpy(alias_string, alias->name);
-	_strcat(alias_string, "='");
-	_strcat(alias_string, alias->value);
-	_strcat(alias_string, "'\n");
-
-	write(STDOUT_FILENO, alias_string, len);
-	free(alias_string);
+	ver_str = aux_itoa(datash->counter);
+	length = _strlen(datash->av[0]) + _strlen(ver_str);
+	length += _strlen(datash->args[0]) + 16;
+	error = malloc(sizeof(char) * (length + 1));
+	if (error == 0)
+	{
+		free(error);
+		free(ver_str);
+		return (NULL);
+	}
+	_strcpy(error, datash->av[0]);
+	_strcat(error, ": ");
+	_strcat(error, ver_str);
+	_strcat(error, ": ");
+	_strcat(error, datash->args[0]);
+	_strcat(error, ": not found\n");
+	_strcat(error, "\0");
+	free(ver_str);
+	return (error);
 }
+
 /**
- * replace_aliases - Goes through the arguments and replace any matching alias
- * with their value.
- * @args: 2D pointer to the arguments.
+ * error_exit_shell - generic error message for exit in get_exit
+ * @datash: data relevant (counter, arguments)
  *
- * Return: 2D pointer to the arguments.
+ * Return: Error message
  */
-char **replace_aliases(char **args)
+char *error_exit_shell(data_shell *datash)
 {
-	alias_t *temp;
-	int i;
-	char *new_value;
+	int length;
+	char *error;
+	char *ver_str;
 
-	if (_strcmp(args[0], "alias") == 0)
-		return (args);
-	for (i = 0; args[i]; i++)
+	ver_str = aux_itoa(datash->counter);
+	length = _strlen(datash->av[0]) + _strlen(ver_str);
+	length += _strlen(datash->args[0]) + _strlen(datash->args[1]) + 23;
+	error = malloc(sizeof(char) * (length + 1));
+	if (error == 0)
 	{
-		temp = aliases;
-		while (temp)
-		{
-			if (_strcmp(args[i], temp->name) == 0)
-			{
-				new_value = malloc(sizeof(char) * (_strlen(temp->value) + 1));
-				if (!new_value)
-				{
-					free_args(args, args);
-					return (NULL);
-				}
-				_strcpy(new_value, temp->value);
-				free(args[i]);
-				args[i] = new_value;
-				i--;
-				break;
-			}
-			temp = temp->next;
-		}
+		free(ver_str);
+		return (NULL);
 	}
+	_strcpy(error, datash->av[0]);
+	_strcat(error, ": ");
+	_strcat(error, ver_str);
+	_strcat(error, ": ");
+	_strcat(error, datash->args[0]);
+	_strcat(error, ": Illegal number: ");
+	_strcat(error, datash->args[1]);
+	_strcat(error, "\n\0");
+	free(ver_str);
 
-	return (args);
+	return (error);
 }
